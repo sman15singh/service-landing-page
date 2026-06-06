@@ -17,6 +17,9 @@ type LeadRecord = Required<LeadPayload> & {
 };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const canSaveToFile =
+  process.env.NODE_ENV !== "production" ||
+  process.env.SAVE_LEADS_TO_FILE === "true";
 
 function clean(value?: string) {
   return typeof value === "string" ? value.trim() : "";
@@ -55,7 +58,7 @@ function validateLead(payload: LeadPayload) {
   return { lead, errors };
 }
 
-async function saveLead(lead: LeadRecord) {
+async function saveLeadToFile(lead: LeadRecord) {
   const dataDirectory = path.join(process.cwd(), "data");
   const filePath = path.join(dataDirectory, "leads.json");
 
@@ -79,7 +82,7 @@ async function sendEmail(lead: LeadRecord) {
     process.env.LEADS_FROM_EMAIL ?? "Consultation Leads <onboarding@resend.dev>";
 
   if (!apiKey || !toEmail) {
-    return;
+    return false;
   }
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -107,8 +110,12 @@ async function sendEmail(lead: LeadRecord) {
   });
 
   if (!response.ok) {
-    throw new Error("Email delivery failed.");
+    const errorText = await response.text();
+    console.error("Lead email delivery failed:", errorText);
+    return false;
   }
+
+  return true;
 }
 
 export async function POST(request: Request) {
@@ -126,11 +133,21 @@ export async function POST(request: Request) {
       submittedAt: new Date().toISOString()
     };
 
-    await saveLead(leadRecord);
-    await sendEmail(leadRecord);
+    if (canSaveToFile) {
+      await saveLeadToFile(leadRecord);
+    }
+
+    const emailSent = await sendEmail(leadRecord);
+
+    if (!canSaveToFile && !emailSent) {
+      console.warn(
+        "Lead received, but no production delivery method is configured. Set RESEND_API_KEY and LEADS_EMAIL."
+      );
+    }
 
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (error) {
+    console.error("Lead submission failed:", error);
     return NextResponse.json(
       {
         ok: false,
