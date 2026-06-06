@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #fbfcff;
+  color: #090b2d;
+}
+
+::selection {
+  background: #050a4f;
+  color: white;
+}
+
+.focus-ring {
+  @apply focus:outline-none focus:ring-4 focus:ring-brand-red/20 focus:border-brand-red;
+}
